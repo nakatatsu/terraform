@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"terraform.experimentalFeatures.validateOnSave": true,
+		"editor.formatOnSave": true
+	}
+}
