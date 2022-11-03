@@ -4,7 +4,6 @@ locals {
   deploy_name                  = "${var.environment.name}-github-actions-deploy"
 }
 
-
 # local/develop環境では直接アップロードを想定するためgithub actions限定ではなくこちらで指定する。
 resource "aws_iam_policy" "github_actions_deploy" {
   name        = local.deploy_name
@@ -24,19 +23,6 @@ resource "aws_api_gateway_rest_api" "personal_website_api" {
   endpoint_configuration {
     types = ["REGIONAL"]
   }
-}
-
-resource "aws_s3_bucket" "personal_website" {
-  # TODO このハードコーディングは無理がある
-  bucket = "${var.environment.name}-personal-website-ld4ab847"
-}
-
-resource "aws_s3_bucket_public_access_block" "personal_website" {
-  bucket                  = aws_s3_bucket.personal_website.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
 }
 
 resource "aws_cloudwatch_log_group" "send_mail" {
@@ -72,8 +58,7 @@ resource "aws_lambda_function" "send_mail" {
   role                           = aws_iam_role.send_mail.arn
   runtime                        = "python3.9"
   timeout                        = "10"
-  s3_bucket                      = var.send_mail.administrative_bucket
-  s3_key                         = var.send_mail.source_s3_key
+  filename                       = "${path.module}/files/lambda_python_empty_function.zip"
   ephemeral_storage {
     size = "512"
   }
@@ -82,19 +67,15 @@ resource "aws_lambda_function" "send_mail" {
   }
   environment {
     variables = {
-      REGION             = var.environment.region
-      SERVICE_ADMIN_MAIL = var.send_mail.administrator_mail_address
-      SERVICE_NAME       = var.send_mail.service_name
-      SERVICE_URL        = var.send_mail.service_url
-      REPLY_TITLE        = var.send_mail.mail_reply_title
-      CORS_ALLOW_ORIGIN  = var.common.allow_origin
+      REGION            = var.environment.region
+      CORS_ALLOW_ORIGIN = var.common.allow_origin
     }
   }
 
   # コード変更は無視する
   lifecycle {
     ignore_changes = [
-      s3_key,
+      filename,
       layers
     ]
   }
@@ -160,9 +141,11 @@ resource "aws_api_gateway_integration_response" "send_mail_cors_empty_response" 
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'",
     "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS,POST'",
-    "method.response.header.Access-Control-Allow-Origin"  = var.common.allow_origin
+    "method.response.header.Access-Control-Allow-Origin"  = "'${var.common.allow_origin}'"
   }
 }
+
+
 
 # Mock統合
 resource "aws_api_gateway_integration" "send_mail_cors_options_mock" {
@@ -201,6 +184,14 @@ resource "aws_api_gateway_stage" "send_mail" {
   deployment_id = aws_api_gateway_deployment.send_mail.id
   rest_api_id   = aws_api_gateway_rest_api.personal_website_api.id
   stage_name    = "v1"
+
+  # デプロイIDは無視する
+  lifecycle {
+    ignore_changes = [
+      deployment_id
+    ]
+  }
+
 }
 
 resource "aws_api_gateway_method_settings" "send_mail" {
@@ -234,7 +225,7 @@ resource "aws_iam_role" "github_actions_deploy" {
   name                 = local.deploy_name
   path                 = "/"
   description          = "For deploy"
-  assume_role_policy   = templatefile("${path.module}/templates/iam_role_github_actions_deploy_assume_role_policy.json", { repository_key = var.common.repository_key, aws_account_id = var.common.aws_account_id })
+  assume_role_policy   = templatefile("${path.module}/templates/iam_role_github_actions_deploy_assume_role_policy.json", { repository_key = var.common.repository_key, aws_account_id = var.environment.aws_account_id })
   managed_policy_arns  = [aws_iam_policy.github_actions_deploy.arn]
   max_session_duration = "3600"
 }

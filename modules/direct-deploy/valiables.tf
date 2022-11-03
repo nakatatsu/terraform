@@ -1,3 +1,1 @@
 variable "environment" {}
-
-variable "common" {}
