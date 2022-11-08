@@ -1,0 +1,45 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+      {
+          "Sid": "LambdaEdit",
+          "Effect": "Allow",
+          "Action": [
+              "lambda:Invoke*",
+              "lambda:Publish*",
+              "lambda:Put*",
+              "lambda:TagResource",
+              "lambda:UntagResource",
+              "lambda:Update*"
+          ],
+          "Resource": "arn:aws:lambda:*:*:function:${env}*"
+      },
+      {
+          "Sid": "LambdaGetInformation",
+          "Effect": "Allow",
+          "Action": [
+              "lambda:Get*",
+              "lambda:List*",
+              "tag:GetResources"
+          ],
+          "Resource": "*"
+      },
+      {
+          "Sid": "S3Upload",
+          "Effect": "Allow",
+          "Action": [
+              "s3:DeleteObject",
+              "s3:DeleteObjectTagging",
+              "s3:DeleteObjectVersionTagging",
+              "s3:Describe*",
+              "s3:Get*",
+              "s3:List*",
+              "s3:PutObject",
+              "s3:PutObjectTagging",
+              "s3:PutObjectVersionTagging",
+              "s3:ReplicateTags"
+          ],
+          "Resource": "arn:aws:s3:::${env}*"
+      }
+  ]
+}
