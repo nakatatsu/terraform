@@ -17,6 +17,7 @@ module "personal_website_common" {
   source          = "../modules/personal-website-common"
   environment     = var.environment
   log_bucket_name = "${var.environment.name}-log-${var.environment.s3_suffix}"
+  github          = var.github
 }
 
 module "personal_website_frontend" {
@@ -29,7 +30,6 @@ module "personal_website_frontend" {
   route53                   = var.route53
 }
 
-# API Gatewayのステージ機能は使わず、サブドメインを分ける想定。
 module "api_gateway_custom_domain" {
   source                     = "../modules/api-gateway-custom-domain"
   domain_name                = "api.${var.route53.domain}"
@@ -40,8 +40,8 @@ module "api_gateway_custom_domain" {
 module "personal_website_backend" {
   source = "../modules/personal-website-backend"
 
-  environment = var.environment
-  common      = var.personal_website_backend.common
+  environment              = var.environment
+  personal_website_backend = var.personal_website_backend
 }
 
 # productのみで実施
@@ -49,7 +49,5 @@ module "github_actions" {
   source = "../modules/github-actions"
 
   environment = var.environment
-  common      = var.personal_website_backend.common
-
 }
 

@@ -1,16 +1,8 @@
 locals {
   personal_website_deploy_name = "${var.environment.name}-personal-website-deploy"
   send_mail_function_name      = "${var.environment.name}-send-mail"
-  deploy_name                  = "${var.environment.name}-github-actions-deploy"
 }
 
-# local/develop環境では直接アップロードを想定するためgithub actions限定ではなくこちらで指定する。
-resource "aws_iam_policy" "github_actions_deploy" {
-  name        = local.deploy_name
-  path        = "/"
-  description = "For deploy"
-  policy      = templatefile("${path.module}/templates/iam_policy_github_actions_deploy.json", { env = var.environment.name })
-}
 
 # API GatewayにはStageという考え方があり、環境はそちらで表現することが想定されている。
 # だがアカウントが分かれても動作してほしいため、。一緒に管理することが前提となるのは困る。そのためAPI Gatewayを別々に作成して管理している。
@@ -58,7 +50,8 @@ resource "aws_lambda_function" "send_mail" {
   role                           = aws_iam_role.send_mail.arn
   runtime                        = "python3.9"
   timeout                        = "10"
-  filename                       = "${path.module}/files/lambda_python_empty_function.zip"
+  # ※ 実行環境によっては相対パスが動作しないことがあるらしい。
+  filename = "${path.module}/files/lambda_python_empty_function.zip"
   ephemeral_storage {
     size = "512"
   }
@@ -68,7 +61,7 @@ resource "aws_lambda_function" "send_mail" {
   environment {
     variables = {
       REGION            = var.environment.region
-      CORS_ALLOW_ORIGIN = var.common.allow_origin
+      CORS_ALLOW_ORIGIN = var.personal_website_backend.common.allow_origin
     }
   }
 
@@ -141,7 +134,7 @@ resource "aws_api_gateway_integration_response" "send_mail_cors_empty_response" 
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers" = "'Content-Type'",
     "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS,POST'",
-    "method.response.header.Access-Control-Allow-Origin"  = "'${var.common.allow_origin}'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'${var.personal_website_backend.common.allow_origin}'"
   }
 }
 
@@ -170,20 +163,16 @@ resource "aws_api_gateway_integration" "send_mail" {
   rest_api_id             = aws_api_gateway_rest_api.personal_website_api.id
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.send_mail.invoke_arn
-}
-
-resource "aws_api_gateway_deployment" "send_mail" {
-  depends_on = [
-    aws_api_gateway_integration.send_mail
-  ]
-  rest_api_id = aws_api_gateway_rest_api.personal_website_api.id
+  uri                     = aws_lambda_alias.send_mail.invoke_arn
+  content_handling        = "CONVERT_TO_TEXT"
+  # 関数のエイリアスを指定する必要がなければ関数直で指定。
+  #  uri                     = aws_lambda_function.send_mail.invoke_arn
 }
 
 resource "aws_api_gateway_stage" "send_mail" {
   deployment_id = aws_api_gateway_deployment.send_mail.id
   rest_api_id   = aws_api_gateway_rest_api.personal_website_api.id
-  stage_name    = "v1"
+  stage_name    = var.personal_website_backend.common.stage_name
 
   # デプロイIDは無視する
   lifecycle {
@@ -191,7 +180,6 @@ resource "aws_api_gateway_stage" "send_mail" {
       deployment_id
     ]
   }
-
 }
 
 resource "aws_api_gateway_method_settings" "send_mail" {
@@ -204,28 +192,36 @@ resource "aws_api_gateway_method_settings" "send_mail" {
   }
 }
 
-
 resource "aws_api_gateway_base_path_mapping" "send_mail" {
   api_id      = aws_api_gateway_rest_api.personal_website_api.id
-  domain_name = var.common.api_domain
+  domain_name = var.personal_website_backend.common.api_domain
   stage_name  = aws_api_gateway_stage.send_mail.stage_name
 }
 
 resource "aws_lambda_permission" "send_mail" {
   statement_id  = "${var.environment.name}-allow-send-mail-invoke"
-  action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.send_mail.function_name
+  action        = "lambda:InvokeFunction"
   principal     = "apigateway.amazonaws.com"
-
-  source_arn = "${aws_api_gateway_rest_api.personal_website_api.execution_arn}/*/*/*"
+  source_arn    = "${aws_api_gateway_rest_api.personal_website_api.execution_arn}/*/*/*"
 }
 
 
-resource "aws_iam_role" "github_actions_deploy" {
-  name                 = local.deploy_name
-  path                 = "/"
-  description          = "For deploy"
-  assume_role_policy   = templatefile("${path.module}/templates/iam_role_github_actions_deploy_assume_role_policy.json", { repository_key = var.common.repository_key, aws_account_id = var.environment.aws_account_id })
-  managed_policy_arns  = [aws_iam_policy.github_actions_deploy.arn]
-  max_session_duration = "3600"
+resource "aws_lambda_permission" "send_mail_alias" {
+  statement_id  = "${var.environment.name}-allow-send-mail-alias-invoke"
+  function_name = aws_lambda_function.send_mail.function_name
+  action        = "lambda:InvokeFunction"
+  qualifier     = "${var.environment.name}-send-mail-alias"
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_api_gateway_rest_api.personal_website_api.execution_arn}/*/*/*"
+}
+
+
+resource "aws_api_gateway_deployment" "send_mail" {
+  depends_on = [aws_api_gateway_method.send_mail]
+
+  rest_api_id = aws_api_gateway_rest_api.personal_website_api.id
+  stage_name  = var.personal_website_backend.common.stage_name
+  # どんな変更だろうと変更がなかろうと必ずデプロイ
+  description = "Deployed at ${timestamp()}"
 }

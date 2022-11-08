@@ -1,3 +1,8 @@
+locals {
+  deploy_name = "${var.environment.name}-github-actions-deploy"
+}
+
+
 # ログ用bucket
 resource "aws_s3_bucket" "log_bucket" {
   bucket = var.log_bucket_name
@@ -46,4 +51,22 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "log_bucket" {
       sse_algorithm = "AES256"
     }
   }
+}
+
+
+
+resource "aws_iam_policy" "github_actions_deploy" {
+  name        = local.deploy_name
+  path        = "/"
+  description = "For deploy"
+  policy      = templatefile("${path.module}/templates/iam_policy_github_actions_deploy.json", { env = var.environment.name })
+}
+
+resource "aws_iam_role" "github_actions_deploy" {
+  name                 = local.deploy_name
+  path                 = "/"
+  description          = "For deploy"
+  assume_role_policy   = templatefile("${path.module}/templates/iam_role_github_actions_deploy_assume_role_policy.json", { repository_keys = var.github.repository_keys, aws_account_id = var.environment.aws_account_id })
+  managed_policy_arns  = [aws_iam_policy.github_actions_deploy.arn]
+  max_session_duration = "3600"
 }

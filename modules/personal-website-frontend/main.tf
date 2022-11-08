@@ -41,6 +41,7 @@ resource "aws_cloudfront_origin_access_control" "www" {
 }
 
 
+
 # cloudfront
 resource "aws_cloudfront_distribution" "front_cdn" {
   aliases = [var.personal_website_frontend.common.front_domain]
@@ -111,6 +112,28 @@ resource "aws_cloudfront_distribution" "front_cdn" {
     minimum_protocol_version       = "TLSv1.2_2021"
     ssl_support_method             = "sni-only"
   }
+}
+
+# 
+data "aws_iam_policy_document" "www" {
+  statement {
+    principals {
+      type        = "Service"
+      identifiers = ["cloudfront.amazonaws.com"]
+    }
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.public_bucket.arn}/*"]
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudfront_distribution.front_cdn.arn]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "www" {
+  bucket = aws_s3_bucket.public_bucket.id
+  policy = data.aws_iam_policy_document.www.json
 }
 
 

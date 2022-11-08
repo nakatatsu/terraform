@@ -1,3 +1,6 @@
+
+
+
 # https://zenn.dev/yukin01/articles/github-actions-oidc-provider-terraform 参照
 data "http" "github_actions_openid_configuration" {
   url = "https://token.actions.githubusercontent.com/.well-known/openid-configuration"
@@ -14,3 +17,4 @@ resource "aws_iam_openid_connect_provider" "github_actions_deploy" {
   # https://docs.aws.amazon.com/ja_jp/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html
   thumbprint_list = data.tls_certificate.github_actions.certificates[*].sha1_fingerprint
 }
+

@@ -9,7 +9,7 @@
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:${repository_key}:*"
+          "token.actions.githubusercontent.com:sub": ${jsonencode(repository_keys)}
         },
         "ForAllValues:StringEquals": {
           "token.actions.githubusercontent.com:iss": "https://token.actions.githubusercontent.com",

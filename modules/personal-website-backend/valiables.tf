@@ -1,3 +1,3 @@
 variable "environment" {}
 
-variable "common" {}
+variable "personal_website_backend" {}

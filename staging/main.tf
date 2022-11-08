@@ -17,6 +17,7 @@ module "personal_website_common" {
   source          = "../modules/personal-website-common"
   environment     = var.environment
   log_bucket_name = "${var.environment.name}-log-${var.environment.s3_suffix}"
+  github          = var.github
 }
 
 module "personal_website_frontend" {
@@ -31,7 +32,7 @@ module "personal_website_frontend" {
 
 module "api_gateway_custom_domain" {
   source                     = "../modules/api-gateway-custom-domain"
-  domain_name                = "staging-api.${var.route53.domain}"
+  domain_name                = "${var.environment.name}-api.${var.route53.domain}"
   route53                    = var.route53
   acm_certificate_validation = { certificate_arn : var.acm.ap_northeast_1 }
 }
@@ -39,7 +40,7 @@ module "api_gateway_custom_domain" {
 module "personal_website_backend" {
   source = "../modules/personal-website-backend"
 
-  environment = var.environment
-  common      = var.personal_website_backend.common
+  environment              = var.environment
+  personal_website_backend = var.personal_website_backend
 }
 
