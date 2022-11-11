@@ -1,4 +1,4 @@
 # Readme
 
-個人サイトのバックエンド側。LambdaとCloudWatchのロググループを入れる。
+個人サイトのバックエンド側。Lambda+API Gatewayがメイン。
 
