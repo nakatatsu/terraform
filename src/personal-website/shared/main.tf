@@ -9,7 +9,7 @@ terraform {
   }
   backend "s3" {
     bucket = "shared-general-tricrow"
-    key    = "terraform/shared.tfstate"
+    key    = "terraform/personal-website/shared.tfstate"
     region = "ap-northeast-1"
   }
 }

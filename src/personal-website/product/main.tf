@@ -7,8 +7,8 @@ terraform {
     }
   }
   backend "s3" {
-    bucket = "staging-general-tricrow"
-    key    = "terraform/staging.tfstate"
+    bucket = "product-general-tricrow"
+    key    = "terraform/personal-website/product.tfstate"
     region = "ap-northeast-1"
   }
 }
@@ -32,7 +32,7 @@ module "personal_website_frontend" {
 
 module "api_gateway_custom_domain" {
   source                     = "../modules/api-gateway-custom-domain"
-  domain_name                = "${var.environment.name}-api.${var.route53.domain}"
+  domain_name                = "api.${var.route53.domain}"
   route53                    = var.route53
   acm_certificate_validation = { certificate_arn : var.acm.ap_northeast_1 }
 }
@@ -42,5 +42,12 @@ module "personal_website_backend" {
 
   environment              = var.environment
   personal_website_backend = var.personal_website_backend
+}
+
+# productのみで実施
+module "github_actions" {
+  source = "../modules/github-actions"
+
+  environment = var.environment
 }
 

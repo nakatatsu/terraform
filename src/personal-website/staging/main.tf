@@ -7,8 +7,8 @@ terraform {
     }
   }
   backend "s3" {
-    bucket = "develop-general-tricrow"
-    key    = "terraform/develop.tfstate"
+    bucket = "staging-general-tricrow"
+    key    = "terraform/personal-website/staging.tfstate"
     region = "ap-northeast-1"
   }
 }
@@ -29,6 +29,7 @@ module "personal_website_frontend" {
   acm                       = var.acm
   route53                   = var.route53
 }
+
 module "api_gateway_custom_domain" {
   source                     = "../modules/api-gateway-custom-domain"
   domain_name                = "${var.environment.name}-api.${var.route53.domain}"
@@ -43,8 +44,3 @@ module "personal_website_backend" {
   personal_website_backend = var.personal_website_backend
 }
 
-module "direct_deploy" {
-  source = "../modules/direct-deploy"
-
-  environment = var.environment
-}
