@@ -2,15 +2,23 @@
 IPv4 VPC
 
 - 1vpc, 3az * public/private のSubnet。
-- Natゲートウェイを1aにしか置かない設計。
+- Natゲートウェイを使わずEgress-Only Internet Gatewayを利用する。
+
+公式リファレンスに"IPv6 CIDR ブロックと VPC の関連付けを解除できます。VPC から IPv6 CIDR ブロックの関連付けを解除すると、IPv6 CIDR ブロックと VPC を後で再び関連付けた場合に同じ CIDR を受け取ることは期待できません。"
+とあるため、時折見られるIPアドレス直接の管理はすべきでない。作り直したくなった時に一から設定しなおしになるためだ。
+(https://docs.aws.amazon.com/ja_jp/vpc/latest/userguide/configure-your-vpc.html#vpc-sizing-ipv6)
+
 */
 
 resource "aws_vpc" "main" {
-  assign_generated_ipv6_cidr_block = "false"
+  assign_generated_ipv6_cidr_block = true
   cidr_block                       = var.vpc.cidr_block
   enable_dns_hostnames             = "true"
   enable_dns_support               = "true"
   instance_tenancy                 = "default"
+  # ipv6_cidr_block                      = var.vpc.ipv6_cidr_block # "2406:da14:a82:9d00::/56"
+  # ipv6_netmask_length                  = "0"
+  #  ipv6_cidr_block_network_border_group = "ap-northeast-1"
 
   tags = {
     Name = "${var.environment.name}-vpc"
@@ -21,11 +29,13 @@ resource "aws_vpc" "main" {
 resource "aws_subnet" "subnet" {
   for_each = { for subnet in var.subnets : "${subnet.az}_${subnet.type}" => subnet }
 
-  vpc_id                              = aws_vpc.main.id
-  cidr_block                          = cidrsubnet(aws_vpc.main.cidr_block, 4, each.value.netnum)
-  private_dns_hostname_type_on_launch = "resource-name"
-  availability_zone                   = "${var.environment.region}${each.value.az}"
-  map_public_ip_on_launch             = each.value.type == "public" ? true : false
+  vpc_id                                         = aws_vpc.main.id
+  ipv6_native                                    = true
+  ipv6_cidr_block                                = cidrsubnet(aws_vpc.main.ipv6_cidr_block, 8, each.value.netnum)
+  private_dns_hostname_type_on_launch            = "resource-name"
+  availability_zone                              = "${var.environment.region}${each.value.az}"
+  assign_ipv6_address_on_creation                = true
+  enable_resource_name_dns_aaaa_record_on_launch = true
 
   tags = {
     Name = "${var.environment.name}-${var.environment.region}${each.value.az}-${each.value.type}"
@@ -34,6 +44,14 @@ resource "aws_subnet" "subnet" {
 
 
 resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "${var.environment.name}-${var.environment.region}"
+  }
+}
+
+resource "aws_egress_only_internet_gateway" "egress" {
   vpc_id = aws_vpc.main.id
 
   tags = {
@@ -50,9 +68,9 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_route" "public" {
-  destination_cidr_block = "0.0.0.0/0"
-  route_table_id         = aws_route_table.public.id
-  gateway_id             = aws_internet_gateway.main.id
+  destination_ipv6_cidr_block = "::/0"
+  route_table_id              = aws_route_table.public.id
+  gateway_id                  = aws_internet_gateway.main.id
 }
 
 resource "aws_route_table_association" "public_route" {
@@ -60,23 +78,6 @@ resource "aws_route_table_association" "public_route" {
 
   route_table_id = aws_route_table.public.id
   subnet_id      = aws_subnet.subnet["${each.value.az}_${each.value.type}"].id
-}
-
-resource "aws_eip" "nat_gateway" {
-  vpc = true
-
-  tags = {
-    Name = "${var.environment.name}-nat-gateway-${var.environment.region}a"
-  }
-}
-
-resource "aws_nat_gateway" "a_public" {
-  allocation_id = aws_eip.nat_gateway.id
-  subnet_id     = aws_subnet.subnet["a_public"].id
-
-  tags = {
-    Name = "${var.environment.name}-nat-gateway-${var.environment.region}a"
-  }
 }
 
 resource "aws_route_table" "private" {
@@ -91,9 +92,9 @@ resource "aws_route_table" "private" {
 resource "aws_route" "private" {
   for_each = { for subnet in var.subnets : "${subnet.az}_${subnet.type}" => subnet if subnet.type == "private" }
 
-  destination_cidr_block = "0.0.0.0/0"
-  route_table_id         = aws_route_table.private["${each.value.az}_${each.value.type}"].id
-  nat_gateway_id         = aws_nat_gateway.a_public.id
+  destination_ipv6_cidr_block = "::/0"
+  route_table_id              = aws_route_table.private["${each.value.az}_${each.value.type}"].id
+  egress_only_gateway_id      = aws_egress_only_internet_gateway.egress.id
 }
 
 resource "aws_route_table_association" "private_route" {
